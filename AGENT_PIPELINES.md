@@ -340,4 +340,194 @@ Stage 7 (IMPLEMENT):
 
 ---
 
-_Main Feature Development Pipeline complete. Quick Feature Pipeline coming next..._
+## 2. Quick Feature Pipeline
+
+**Description:** Streamlined workflow for simple features, prototypes, or when speed is prioritized over extensive validation.
+
+**When to Use:**
+- Simple, well-understood features
+- Prototypes and MVPs
+- Personal projects or exploratory work
+- Features with low risk or limited scope
+- When requirements are already clear
+
+**Pipeline Stages:** 4 stages (all required, no optional steps)
+
+### ASCII Workflow Diagram
+
+```
+┌─────────────────┐
+│  1. SPECIFY     │ *** REQUIRED ***
+│  /speckit.      │
+│  specify        │
+└────────┬────────┘
+         │ Creates: spec.md, checklists/requirements.md
+         │ Branch: [N]-[feature-name]
+         │
+         ▼
+┌─────────────────┐
+│  2. PLAN        │ *** REQUIRED ***
+│  /speckit.plan  │
+└────────┬────────┘
+         │ Creates: plan.md, research.md, data-model.md
+         │          contracts/, quickstart.md
+         │
+         ▼
+┌─────────────────┐
+│  3. TASKS       │ *** REQUIRED ***
+│  /speckit.tasks │
+└────────┬────────┘
+         │ Creates: tasks.md (dependency-ordered)
+         │
+         ▼
+┌─────────────────┐
+│ 4. IMPLEMENT    │ *** REQUIRED ***
+│  /speckit.      │
+│  implement      │
+└────────┬────────┘
+         │ Implements: All tasks in tasks.md
+         │
+         ▼
+    ┌─────────┐
+    │ SUCCESS │
+    └─────────┘
+```
+
+### Skipped Steps
+
+**Not included (but can be added later if needed):**
+- ❌ CLARIFY - Assumes requirements are clear from specify step
+- ❌ ANALYZE - No consistency validation
+- ❌ CHECKLIST - No domain-specific requirement validation
+
+### Example Session
+
+```bash
+# Quick 4-step workflow
+/speckit.specify "Add export to CSV functionality"
+/speckit.plan
+/speckit.tasks
+/speckit.implement
+```
+
+### Trade-offs
+
+**Advantages:**
+- ✅ Faster time to implementation
+- ✅ Fewer interactive prompts
+- ✅ Simpler workflow
+
+**Risks:**
+- ⚠️ May miss ambiguities in requirements
+- ⚠️ No cross-artifact consistency checks
+- ⚠️ Limited quality validation
+- ⚠️ Higher rework risk if requirements misunderstood
+
+### When to Upgrade to Full Pipeline
+
+If during implementation you discover:
+- Requirements were ambiguous → Go back and run `/speckit.clarify`
+- Inconsistencies between artifacts → Run `/speckit.analyze`
+- Need domain validation → Run `/speckit.checklist [domain]`
+
+---
+
+## 3. Specification Refinement Pipeline
+
+**Description:** Iterative workflow focused on perfecting requirements before planning begins.
+
+**When to Use:**
+- Complex or ambiguous requirements
+- Features with multiple stakeholders requiring alignment
+- High-risk features needing careful specification
+- When requirements quality is critical
+
+**Pipeline Stages:** Iterative specify → clarify loop
+
+### ASCII Workflow Diagram
+
+```
+     ┌─────────────────┐
+     │    SPECIFY      │
+     │  /speckit.      │
+     │  specify        │
+     └────────┬────────┘
+              │ Creates: spec.md (initial)
+              │
+              ▼
+     ┌─────────────────┐
+  ┌─►│    CLARIFY      │
+  │  │  /speckit.      │
+  │  │  clarify        │
+  │  └────────┬────────┘
+  │           │ Updates: spec.md
+  │           │ Asks: Up to 5 questions
+  │           │
+  │           ▼
+  │  ┌──────────────────┐
+  │  │  Review Updated  │
+  │  │  Specification   │
+  │  └────────┬─────────┘
+  │           │
+  │           ├─── More ambiguities? ───┐
+  │           │                          │
+  │           │ YES                      │ NO
+  │           │                          │
+  └───────────┘                          ▼
+                              ┌──────────────────┐
+                              │ Specification    │
+                              │ Ready for        │
+                              │ Planning         │
+                              └────────┬─────────┘
+                                       │
+                                       ▼
+                              Continue to PLAN stage
+```
+
+### Data Flow
+
+```
+Iteration 1:
+  SPECIFY → spec.md (v1) → CLARIFY → spec.md (v1.1)
+
+Iteration 2:
+  spec.md (v1.1) → CLARIFY → spec.md (v1.2)
+
+Iteration N:
+  spec.md (v1.N-1) → CLARIFY → spec.md (v1.N) [Ready for PLAN]
+```
+
+### Example Session
+
+```bash
+# Initial specification
+/speckit.specify "Complex authentication system with multiple providers"
+# → spec.md created with some [NEEDS CLARIFICATION] markers
+
+# First clarification pass
+/speckit.clarify
+# → Resolves 5 questions about OAuth providers, token storage, session management
+# → Updates spec.md
+
+# Review and second clarification pass (if needed)
+/speckit.clarify "Focus on security and compliance"
+# → Resolves 5 more questions about data protection, audit logging, MFA
+# → Updates spec.md
+
+# Continue when satisfied
+/speckit.plan
+# ...rest of pipeline
+```
+
+### Exit Criteria
+
+Specification is ready for planning when:
+- ✅ All [NEEDS CLARIFICATION] markers resolved
+- ✅ Ambiguity scan finds no critical gaps
+- ✅ Functional and non-functional requirements complete
+- ✅ Edge cases identified
+- ✅ Dependencies and assumptions documented
+
+---
+
+_Specification Refinement Pipeline complete. Quality Validation Pipelines coming next..._
