@@ -838,4 +838,464 @@ Every task MUST strictly follow this format:
 
 ---
 
-_Planning Phase documentation complete. Quality Assurance Phase documentation coming next..._
+## 3. Quality Assurance Phase
+
+The Quality Assurance Phase provides tools for validating requirements quality and cross-artifact consistency. These prompts act as "unit tests for requirements" and consistency analyzers to catch issues before implementation.
+
+### 3.1 Checklist Prompt
+
+**File Location:** `templates/commands/checklist.md`
+
+**Command:** `/speckit.checklist [domain/context]`
+
+**Purpose:**
+Generates custom requirement quality checklists that act as "unit tests for English" - validating the quality, clarity, and completeness of requirements in a given domain. This prompt:
+- Tests requirements themselves, NOT implementation behavior
+- Generates 3-5 dynamic clarifying questions about focus areas
+- Creates domain-specific checklists (ux.md, api.md, security.md, etc.)
+- Validates completeness, clarity, consistency, measurability, and coverage
+- Uses traceability markers [Spec §X.Y], [Gap], [Ambiguity], [Conflict]
+
+**When to Use:**
+- After `/speckit.specify` or `/speckit.plan` completes
+- When you need domain-specific requirement validation (UX, API, security, performance)
+- Before implementation to catch ambiguities and gaps
+- During PR reviews to validate requirement quality
+
+**Key Features:**
+- **"Unit Tests for Requirements"** concept - tests if requirements are well-written, not if implementation works
+- Dynamic question generation (no pre-baked catalogs)
+- Up to 5 clarifying questions with multiple-choice format
+- Traceability requirement: ≥80% of items must reference spec sections or use gap/ambiguity markers
+- Quality dimensions: Completeness, Clarity, Consistency, Measurability, Coverage, Edge Cases
+- Each checklist run creates a new file with descriptive name
+
+**Output:**
+- `FEATURE_DIR/checklists/[domain].md` - Domain-specific checklist (e.g., ux.md, api.md, security.md)
+- Sequential item IDs starting from CHK001
+- Categories grouped by requirement quality dimensions
+
+**Key Concept - Tests Requirements, Not Implementation:**
+
+❌ **WRONG** (Testing implementation):
+- "Verify landing page displays 3 episode cards"
+- "Test hover states work on desktop"
+- "Confirm logo click navigates home"
+
+✅ **CORRECT** (Testing requirements quality):
+- "Are the exact number and layout of featured episodes specified? [Completeness, Spec §FR-001]"
+- "Are hover state requirements consistent across all interactive elements? [Consistency]"
+- "Is fallback behavior defined when images fail to load? [Edge Case, Gap]"
+
+**Prompt Template:**
+
+```markdown
+---
+description: Generate a custom checklist for the current feature based on user requirements.
+scripts:
+  sh: scripts/bash/check-prerequisites.sh --json
+  ps: scripts/powershell/check-prerequisites.ps1 -Json
+---
+
+## Checklist Purpose: "Unit Tests for English"
+
+**CRITICAL CONCEPT**: Checklists are **UNIT TESTS FOR REQUIREMENTS WRITING** - they validate the quality, clarity, and completeness of requirements in a given domain.
+
+**NOT for verification/testing**:
+
+- ❌ NOT "Verify the button clicks correctly"
+- ❌ NOT "Test error handling works"
+- ❌ NOT "Confirm the API returns 200"
+- ❌ NOT checking if code/implementation matches the spec
+
+**FOR requirements quality validation**:
+
+- ✅ "Are visual hierarchy requirements defined for all card types?" (completeness)
+- ✅ "Is 'prominent display' quantified with specific sizing/positioning?" (clarity)
+- ✅ "Are hover state requirements consistent across all interactive elements?" (consistency)
+- ✅ "Are accessibility requirements defined for keyboard navigation?" (coverage)
+- ✅ "Does the spec define what happens when logo image fails to load?" (edge cases)
+
+**Metaphor**: If your spec is code written in English, the checklist is its unit test suite. You're testing whether the requirements are well-written, complete, unambiguous, and ready for implementation - NOT whether the implementation works.
+
+## User Input
+
+```text
+$ARGUMENTS
+```
+
+You **MUST** consider the user input before proceeding (if not empty).
+
+## Execution Steps
+
+1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS list.
+   - All file paths must be absolute.
+   - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+
+2. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
+   - Be generated from the user's phrasing + extracted signals from spec/plan/tasks
+   - Only ask about information that materially changes checklist content
+   - Be skipped individually if already unambiguous in `$ARGUMENTS`
+   - Prefer precision over breadth
+
+   Generation algorithm:
+   1. Extract signals: feature domain keywords (e.g., auth, latency, UX, API), risk indicators ("critical", "must", "compliance"), stakeholder hints ("QA", "review", "security team"), and explicit deliverables ("a11y", "rollback", "contracts").
+   2. Cluster signals into candidate focus areas (max 4) ranked by relevance.
+   3. Identify probable audience & timing (author, reviewer, QA, release) if not explicit.
+   4. Detect missing dimensions: scope breadth, depth/rigor, risk emphasis, exclusion boundaries, measurable acceptance criteria.
+   5. Formulate questions chosen from these archetypes:
+      - Scope refinement (e.g., "Should this include integration touchpoints with X and Y or stay limited to local module correctness?")
+      - Risk prioritization (e.g., "Which of these potential risk areas should receive mandatory gating checks?")
+      - Depth calibration (e.g., "Is this a lightweight pre-commit sanity list or a formal release gate?")
+      - Audience framing (e.g., "Will this be used by the author only or peers during PR review?")
+      - Boundary exclusion (e.g., "Should we explicitly exclude performance tuning items this round?")
+      - Scenario class gap (e.g., "No recovery flows detected—are rollback / partial failure paths in scope?")
+
+   Question formatting rules:
+   - If presenting options, generate a compact table with columns: Option | Candidate | Why It Matters
+   - Limit to A–E options maximum; omit table if a free-form answer is clearer
+   - Never ask the user to restate what they already said
+   - Avoid speculative categories (no hallucination). If uncertain, ask explicitly: "Confirm whether X belongs in scope."
+
+   Defaults when interaction impossible:
+   - Depth: Standard
+   - Audience: Reviewer (PR) if code-related; Author otherwise
+   - Focus: Top 2 relevance clusters
+
+   Output the questions (label Q1/Q2/Q3). After answers: if ≥2 scenario classes (Alternate / Exception / Recovery / Non-Functional domain) remain unclear, you MAY ask up to TWO more targeted follow‑ups (Q4/Q5) with a one-line justification each (e.g., "Unresolved recovery path risk"). Do not exceed five total questions. Skip escalation if user explicitly declines more.
+
+3. **Understand user request**: Combine `$ARGUMENTS` + clarifying answers:
+   - Derive checklist theme (e.g., security, review, deploy, ux)
+   - Consolidate explicit must-have items mentioned by user
+   - Map focus selections to category scaffolding
+   - Infer any missing context from spec/plan/tasks (do NOT hallucinate)
+
+4. **Load feature context**: Read from FEATURE_DIR:
+   - spec.md: Feature requirements and scope
+   - plan.md (if exists): Technical details, dependencies
+   - tasks.md (if exists): Implementation tasks
+
+   **Context Loading Strategy**:
+   - Load only necessary portions relevant to active focus areas (avoid full-file dumping)
+   - Prefer summarizing long sections into concise scenario/requirement bullets
+   - Use progressive disclosure: add follow-on retrieval only if gaps detected
+   - If source docs are large, generate interim summary items instead of embedding raw text
+
+5. **Generate checklist** - Create "Unit Tests for Requirements":
+   - Create `FEATURE_DIR/checklists/` directory if it doesn't exist
+   - Generate unique checklist filename:
+     - Use short, descriptive name based on domain (e.g., `ux.md`, `api.md`, `security.md`)
+     - Format: `[domain].md`
+     - If file exists, append to existing file
+   - Number items sequentially starting from CHK001
+   - Each `/speckit.checklist` run creates a NEW file (never overwrites existing checklists)
+
+   **CORE PRINCIPLE - Test the Requirements, Not the Implementation**:
+   Every checklist item MUST evaluate the REQUIREMENTS THEMSELVES for:
+   - **Completeness**: Are all necessary requirements present?
+   - **Clarity**: Are requirements unambiguous and specific?
+   - **Consistency**: Do requirements align with each other?
+   - **Measurability**: Can requirements be objectively verified?
+   - **Coverage**: Are all scenarios/edge cases addressed?
+
+   **Category Structure** - Group items by requirement quality dimensions:
+   - **Requirement Completeness** (Are all necessary requirements documented?)
+   - **Requirement Clarity** (Are requirements specific and unambiguous?)
+   - **Requirement Consistency** (Do requirements align without conflicts?)
+   - **Acceptance Criteria Quality** (Are success criteria measurable?)
+   - **Scenario Coverage** (Are all flows/cases addressed?)
+   - **Edge Case Coverage** (Are boundary conditions defined?)
+   - **Non-Functional Requirements** (Performance, Security, Accessibility, etc. - are they specified?)
+   - **Dependencies & Assumptions** (Are they documented and validated?)
+   - **Ambiguities & Conflicts** (What needs clarification?)
+
+   **HOW TO WRITE CHECKLIST ITEMS - "Unit Tests for English"**:
+
+   ❌ **WRONG** (Testing implementation):
+   - "Verify landing page displays 3 episode cards"
+   - "Test hover states work on desktop"
+   - "Confirm logo click navigates home"
+
+   ✅ **CORRECT** (Testing requirements quality):
+   - "Are the exact number and layout of featured episodes specified?" [Completeness]
+   - "Is 'prominent display' quantified with specific sizing/positioning?" [Clarity]
+   - "Are hover state requirements consistent across all interactive elements?" [Consistency]
+   - "Are keyboard navigation requirements defined for all interactive UI?" [Coverage]
+   - "Is the fallback behavior specified when logo image fails to load?" [Edge Cases]
+   - "Are loading states defined for asynchronous episode data?" [Completeness]
+   - "Does the spec define visual hierarchy for competing UI elements?" [Clarity]
+
+   **ITEM STRUCTURE**:
+   Each item should follow this pattern:
+   - Question format asking about requirement quality
+   - Focus on what's WRITTEN (or not written) in the spec/plan
+   - Include quality dimension in brackets [Completeness/Clarity/Consistency/etc.]
+   - Reference spec section `[Spec §X.Y]` when checking existing requirements
+   - Use `[Gap]` marker when checking for missing requirements
+
+   **Traceability Requirements**:
+   - MINIMUM: ≥80% of items MUST include at least one traceability reference
+   - Each item should reference: spec section `[Spec §X.Y]`, or use markers: `[Gap]`, `[Ambiguity]`, `[Conflict]`, `[Assumption]`
+   - If no ID system exists: "Is a requirement & acceptance criteria ID scheme established? [Traceability]"
+
+   **Surface & Resolve Issues** (Requirements Quality Problems):
+   Ask questions about the requirements themselves:
+   - Ambiguities: "Is the term 'fast' quantified with specific metrics? [Ambiguity, Spec §NFR-1]"
+   - Conflicts: "Do navigation requirements conflict between §FR-10 and §FR-10a? [Conflict]"
+   - Assumptions: "Is the assumption of 'always available podcast API' validated? [Assumption]"
+   - Dependencies: "Are external podcast API requirements documented? [Dependency, Gap]"
+   - Missing definitions: "Is 'visual hierarchy' defined with measurable criteria? [Gap]"
+
+   **🚫 ABSOLUTELY PROHIBITED** - These make it an implementation test, not a requirements test:
+   - ❌ Any item starting with "Verify", "Test", "Confirm", "Check" + implementation behavior
+   - ❌ References to code execution, user actions, system behavior
+   - ❌ "Displays correctly", "works properly", "functions as expected"
+   - ❌ "Click", "navigate", "render", "load", "execute"
+   - ❌ Test cases, test plans, QA procedures
+   - ❌ Implementation details (frameworks, APIs, algorithms)
+
+   **✅ REQUIRED PATTERNS** - These test requirements quality:
+   - ✅ "Are [requirement type] defined/specified/documented for [scenario]?"
+   - ✅ "Is [vague term] quantified/clarified with specific criteria?"
+   - ✅ "Are requirements consistent between [section A] and [section B]?"
+   - ✅ "Can [requirement] be objectively measured/verified?"
+   - ✅ "Are [edge cases/scenarios] addressed in requirements?"
+   - ✅ "Does the spec define [missing aspect]?"
+
+6. **Structure Reference**: Generate the checklist following the canonical template in `templates/checklist-template.md` for title, meta section, category headings, and ID formatting.
+
+7. **Report**: Output full path to created checklist, item count, and remind user that each run creates a new file. Summarize:
+   - Focus areas selected
+   - Depth level
+   - Actor/timing
+   - Any explicit user-specified must-have items incorporated
+```
+
+---
+
+### 3.2 Analyze Prompt
+
+**File Location:** `templates/commands/analyze.md`
+
+**Command:** `/speckit.analyze [optional context]`
+
+**Purpose:**
+Performs non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md. This prompt:
+- Detects duplications, ambiguities, underspecification, and inconsistencies
+- Validates constitution alignment (constitution violations are CRITICAL)
+- Maps requirements to tasks and checks coverage
+- Assigns severity levels (CRITICAL, HIGH, MEDIUM, LOW)
+- Produces structured analysis report with remediation suggestions
+
+**When to Use:**
+- After `/speckit.tasks` completes (requires tasks.md to exist)
+- Before `/speckit.implement` to catch issues early
+- During planning reviews to ensure cross-artifact consistency
+- When you suspect requirements coverage gaps or conflicts
+
+**Key Features:**
+- **Strictly read-only** - never modifies files
+- Constitution authority is non-negotiable (conflicts are CRITICAL)
+- Progressive disclosure for token efficiency
+- Multiple detection passes: Duplication, Ambiguity, Underspecification, Constitution Alignment, Coverage Gaps, Inconsistency
+- Severity-based prioritization with remediation recommendations
+- Coverage summary showing which requirements have associated tasks
+
+**Output:**
+- Structured Markdown analysis report (not written to file) with:
+  - Findings table with ID, Category, Severity, Location, Summary, Recommendation
+  - Coverage summary mapping requirements to tasks
+  - Constitution alignment issues (if any)
+  - Unmapped tasks (if any)
+  - Metrics (total requirements, total tasks, coverage %, issue counts)
+  - Next actions and remediation suggestions
+
+**Prompt Template:**
+
+```markdown
+---
+description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation.
+scripts:
+  sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
+  ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
+---
+
+## User Input
+
+```text
+$ARGUMENTS
+```
+
+You **MUST** consider the user input before proceeding (if not empty).
+
+## Goal
+
+Identify inconsistencies, duplications, ambiguities, and underspecified items across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/speckit.tasks` has successfully produced a complete `tasks.md`.
+
+## Operating Constraints
+
+**STRICTLY READ-ONLY**: Do **not** modify any files. Output a structured analysis report. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
+
+**Constitution Authority**: The project constitution (`/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle.
+
+## Execution Steps
+
+### 1. Initialize Analysis Context
+
+Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
+
+- SPEC = FEATURE_DIR/spec.md
+- PLAN = FEATURE_DIR/plan.md
+- TASKS = FEATURE_DIR/tasks.md
+
+Abort with an error message if any required file is missing (instruct the user to run missing prerequisite command).
+For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+
+### 2. Load Artifacts (Progressive Disclosure)
+
+Load only the minimal necessary context from each artifact:
+
+**From spec.md:**
+
+- Overview/Context
+- Functional Requirements
+- Non-Functional Requirements
+- User Stories
+- Edge Cases (if present)
+
+**From plan.md:**
+
+- Architecture/stack choices
+- Data Model references
+- Phases
+- Technical constraints
+
+**From tasks.md:**
+
+- Task IDs
+- Descriptions
+- Phase grouping
+- Parallel markers [P]
+- Referenced file paths
+
+**From constitution:**
+
+- Load `/memory/constitution.md` for principle validation
+
+### 3. Build Semantic Models
+
+Create internal representations (do not include raw artifacts in output):
+
+- **Requirements inventory**: Each functional + non-functional requirement with a stable key
+- **User story/action inventory**: Discrete user actions with acceptance criteria
+- **Task coverage mapping**: Map each task to one or more requirements or stories
+- **Constitution rule set**: Extract principle names and MUST/SHOULD normative statements
+
+### 4. Detection Passes (Token-Efficient Analysis)
+
+Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
+
+#### A. Duplication Detection
+
+- Identify near-duplicate requirements
+- Mark lower-quality phrasing for consolidation
+
+#### B. Ambiguity Detection
+
+- Flag vague adjectives (fast, scalable, secure, intuitive, robust) lacking measurable criteria
+- Flag unresolved placeholders (TODO, TKTK, ???, `<placeholder>`, etc.)
+
+#### C. Underspecification
+
+- Requirements with verbs but missing object or measurable outcome
+- User stories missing acceptance criteria alignment
+- Tasks referencing files or components not defined in spec/plan
+
+#### D. Constitution Alignment
+
+- Any requirement or plan element conflicting with a MUST principle
+- Missing mandated sections or quality gates from constitution
+
+#### E. Coverage Gaps
+
+- Requirements with zero associated tasks
+- Tasks with no mapped requirement/story
+- Non-functional requirements not reflected in tasks
+
+#### F. Inconsistency
+
+- Terminology drift (same concept named differently across files)
+- Data entities referenced in plan but absent in spec (or vice versa)
+- Task ordering contradictions
+- Conflicting requirements
+
+### 5. Severity Assignment
+
+Use this heuristic to prioritize findings:
+
+- **CRITICAL**: Violates constitution MUST, missing core spec artifact, or requirement with zero coverage that blocks baseline functionality
+- **HIGH**: Duplicate or conflicting requirement, ambiguous security/performance attribute, untestable acceptance criterion
+- **MEDIUM**: Terminology drift, missing non-functional task coverage, underspecified edge case
+- **LOW**: Style/wording improvements, minor redundancy not affecting execution order
+
+### 6. Produce Compact Analysis Report
+
+Output a Markdown report (no file writes) with the following structure:
+
+## Specification Analysis Report
+
+| ID | Category | Severity | Location(s) | Summary | Recommendation |
+|----|----------|----------|-------------|---------|----------------|
+| A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
+
+**Coverage Summary Table:**
+
+| Requirement Key | Has Task? | Task IDs | Notes |
+|-----------------|-----------|----------|-------|
+
+**Constitution Alignment Issues:** (if any)
+
+**Unmapped Tasks:** (if any)
+
+**Metrics:**
+
+- Total Requirements
+- Total Tasks
+- Coverage % (requirements with >=1 task)
+- Ambiguity Count
+- Duplication Count
+- Critical Issues Count
+
+### 7. Provide Next Actions
+
+At end of report, output a concise Next Actions block:
+
+- If CRITICAL issues exist: Recommend resolving before `/speckit.implement`
+- If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
+- Provide explicit command suggestions
+
+### 8. Offer Remediation
+
+Ask the user: "Would you like me to suggest concrete remediation edits for the top N issues?" (Do NOT apply them automatically.)
+
+## Operating Principles
+
+### Context Efficiency
+
+- **Minimal high-signal tokens**: Focus on actionable findings
+- **Progressive disclosure**: Load artifacts incrementally
+- **Token-efficient output**: Limit findings table to 50 rows
+- **Deterministic results**: Rerunning without changes should produce consistent IDs and counts
+
+### Analysis Guidelines
+
+- **NEVER modify files** (this is read-only analysis)
+- **NEVER hallucinate missing sections**
+- **Prioritize constitution violations** (these are always CRITICAL)
+- **Use examples over exhaustive rules**
+- **Report zero issues gracefully**
+```
+
+---
+
+_Quality Assurance Phase documentation complete. Implementation and Governance documentation coming next..._
