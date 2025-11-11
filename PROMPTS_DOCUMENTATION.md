@@ -1298,4 +1298,292 @@ Ask the user: "Would you like me to suggest concrete remediation edits for the t
 
 ---
 
-_Quality Assurance Phase documentation complete. Implementation and Governance documentation coming next..._
+## 4. Implementation Phase
+
+The Implementation Phase executes the task plan with built-in quality gates and project setup automation.
+
+### 4.1 Implement Prompt
+
+**File Location:** `templates/commands/implement.md`
+
+**Command:** `/speckit.implement [optional context]`
+
+**Purpose:**
+Executes the implementation plan by processing all tasks defined in tasks.md with prerequisite validation and automated project setup. This prompt:
+- Validates checklist completion status before implementation
+- Loads all design artifacts (plan, data-model, contracts, research, quickstart)
+- Automatically creates/verifies technology-specific ignore files
+- Executes tasks phase-by-phase with dependency management
+- Tracks progress and marks completed tasks with [X]
+
+**When to Use:**
+- After `/speckit.tasks` completes
+- Optionally after `/speckit.analyze` validates consistency
+- When ready to execute the implementation plan
+- With complete design artifacts available
+
+**Key Features:**
+- **Checklist gate**: Checks all checklists in `checklists/` directory, warns if incomplete
+- **Smart ignore file management**: Detects technology stack and creates/updates appropriate ignore files (.gitignore, .dockerignore, .eslintignore, etc.)
+- **Phase-by-phase execution**: Setup → Foundational → User Stories (by priority) → Polish
+- **Dependency-aware**: Respects sequential vs parallel task execution
+- **Progress tracking**: Marks tasks as [X] in tasks.md as they complete
+- **Comprehensive pattern libraries**: Pre-configured ignore patterns for 20+ languages/tools
+
+**Output:**
+- Implemented features per tasks.md
+- Updated tasks.md with completed tasks marked [X]
+- Created/updated ignore files based on technology stack
+- Progress reports after each phase
+
+**Supported Technology Patterns:**
+- Languages: Node.js, Python, Java, C#/.NET, Go, Ruby, PHP, Rust, Kotlin, C++, C, Swift, R
+- Tools: Docker, ESLint, Prettier, Terraform, Kubernetes, Helm
+- Universal patterns: IDE files, OS files, logs, secrets
+
+**Prompt Template:**
+
+```markdown
+---
+description: Execute the implementation plan by processing and executing all tasks defined in tasks.md
+scripts:
+  sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
+  ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
+---
+
+## User Input
+
+```text
+$ARGUMENTS
+```
+
+You **MUST** consider the user input before proceeding (if not empty).
+
+## Outline
+
+1. Run `{SCRIPT}` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute.
+
+2. **Check checklists status** (if FEATURE_DIR/checklists/ exists):
+   - Scan all checklist files in the checklists/ directory
+   - For each checklist, count:
+     - Total items: All lines matching `- [ ]` or `- [X]` or `- [x]`
+     - Completed items: Lines matching `- [X]` or `- [x]`
+     - Incomplete items: Lines matching `- [ ]`
+   - Create a status table
+
+   - **If any checklist is incomplete**:
+     - Display the table with incomplete item counts
+     - **STOP** and ask: "Some checklists are incomplete. Do you want to proceed with implementation anyway? (yes/no)"
+     - Wait for user response before continuing
+
+   - **If all checklists are complete**:
+     - Display the table showing all checklists passed
+     - Automatically proceed to step 3
+
+3. Load and analyze the implementation context:
+   - **REQUIRED**: Read tasks.md for the complete task list and execution plan
+   - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
+   - **IF EXISTS**: Read data-model.md, contracts/, research.md, quickstart.md
+
+4. **Project Setup Verification**:
+   - **REQUIRED**: Create/verify ignore files based on actual project setup
+
+   **Detection & Creation Logic**:
+   - Check if git repo → create/verify .gitignore
+   - Check if Dockerfile* exists → create/verify .dockerignore
+   - Check if .eslintrc* exists → create/verify .eslintignore
+   - Check if .prettierrc* exists → create/verify .prettierignore
+   - And more for npm, terraform, helm, etc.
+
+   **Common Patterns by Technology**:
+   - **Node.js/JavaScript/TypeScript**: `node_modules/`, `dist/`, `build/`, `*.log`, `.env*`
+   - **Python**: `__pycache__/`, `*.pyc`, `.venv/`, `venv/`, `dist/`, `*.egg-info/`
+   - **Java**: `target/`, `*.class`, `*.jar`, `.gradle/`, `build/`
+   - **C#/.NET**: `bin/`, `obj/`, `*.user`, `*.suo`, `packages/`
+   - **Go**: `*.exe`, `*.test`, `vendor/`, `*.out`
+   - **Ruby**: `.bundle/`, `log/`, `tmp/`, `*.gem`, `vendor/bundle/`
+   - **PHP**: `vendor/`, `*.log`, `*.cache`, `*.env`
+   - **Rust**: `target/`, `debug/`, `release/`, `*.rs.bk`
+   - **Universal**: `.DS_Store`, `Thumbs.db`, `.vscode/`, `.idea/`
+
+5. Parse tasks.md structure and extract:
+   - **Task phases**: Setup, Tests, Core, Integration, Polish
+   - **Task dependencies**: Sequential vs parallel execution rules
+   - **Task details**: ID, description, file paths, parallel markers [P]
+
+6. Execute implementation following the task plan:
+   - **Phase-by-phase execution**: Complete each phase before moving to the next
+   - **Respect dependencies**: Run sequential tasks in order, parallel tasks [P] can run together
+   - **Follow TDD approach**: Execute test tasks before implementation tasks if present
+   - **File-based coordination**: Tasks affecting the same files must run sequentially
+
+7. Implementation execution rules:
+   - **Setup first**: Initialize project structure, dependencies, configuration
+   - **Tests before code**: If tests exist, write tests for contracts, entities, and integration scenarios
+   - **Core development**: Implement models, services, CLI commands, endpoints
+   - **Integration work**: Database connections, middleware, logging, external services
+   - **Polish and validation**: Unit tests, performance optimization, documentation
+
+8. Progress tracking and error handling:
+   - Report progress after each completed task
+   - Halt execution if any non-parallel task fails
+   - For parallel tasks [P], continue with successful tasks, report failed ones
+   - **IMPORTANT**: Mark completed tasks as [X] in tasks.md
+
+9. Completion validation:
+   - Verify all required tasks are completed
+   - Check that implemented features match the original specification
+   - Validate that tests pass and coverage meets requirements
+   - Confirm the implementation follows the technical plan
+```
+
+---
+
+## 5. Project Governance
+
+Project Governance provides constitutional principles that guide all development decisions and ensure cross-phase consistency.
+
+### 5.1 Constitution Prompt
+
+**File Location:** `templates/commands/constitution.md`
+
+**Command:** `/speckit.constitution [principles/updates]`
+
+**Purpose:**
+Creates or updates the project constitution with principles, governance rules, and version tracking. This prompt:
+- Collects/derives values for principle placeholders
+- Manages semantic version bumping (MAJOR/MINOR/PATCH)
+- Validates constitution changes against dependent templates
+- Propagates changes to plan-template, spec-template, tasks-template, and command files
+- Generates sync impact report showing affected files
+
+**When to Use:**
+- At project initialization to establish governing principles
+- When adding/modifying core development principles
+- When changing governance or amendment procedures
+- Before starting new features to ensure constitution alignment
+
+**Key Features:**
+- **Template-based**: Works with placeholder tokens `[PROJECT_NAME]`, `[PRINCIPLE_1_NAME]`, etc.
+- **Semantic versioning**: MAJOR (breaking changes), MINOR (new principles), PATCH (clarifications)
+- **Consistency propagation**: Updates all dependent templates automatically
+- **Sync impact reporting**: Shows which files need updates and which are already synced
+- **Governance tracking**: Records ratification date, last amended date, version history
+
+**Output:**
+- `/memory/constitution.md` - Updated constitution with filled placeholders
+- Sync impact report (HTML comment at top of file) showing:
+  - Version change (old → new)
+  - Modified/added/removed principles
+  - Template update status (✅ updated / ⚠ pending)
+  - Follow-up TODOs
+
+**Prompt Template:**
+
+```markdown
+---
+description: Create or update the project constitution from interactive or provided principle inputs, ensuring all dependent templates stay in sync
+---
+
+## User Input
+
+```text
+$ARGUMENTS
+```
+
+You **MUST** consider the user input before proceeding (if not empty).
+
+## Outline
+
+You are updating the project constitution at `/memory/constitution.md`. This file is a TEMPLATE containing placeholder tokens in square brackets (e.g. `[PROJECT_NAME]`, `[PRINCIPLE_1_NAME]`). Your job is to (a) collect/derive concrete values, (b) fill the template precisely, and (c) propagate any amendments across dependent artifacts.
+
+Follow this execution flow:
+
+1. Load the existing constitution template at `/memory/constitution.md`.
+   - Identify every placeholder token of the form `[ALL_CAPS_IDENTIFIER]`.
+   **IMPORTANT**: The user might require less or more principles than the ones used in the template. If a number is specified, respect that.
+
+2. Collect/derive values for placeholders:
+   - If user input supplies a value, use it.
+   - Otherwise infer from existing repo context (README, docs, prior constitution versions).
+   - For governance dates: `RATIFICATION_DATE` is the original adoption date, `LAST_AMENDED_DATE` is today if changes are made.
+   - `CONSTITUTION_VERSION` must increment according to semantic versioning:
+     - MAJOR: Backward incompatible governance/principle removals or redefinitions.
+     - MINOR: New principle/section added or materially expanded guidance.
+     - PATCH: Clarifications, wording, typo fixes, non-semantic refinements.
+
+3. Draft the updated constitution content:
+   - Replace every placeholder with concrete text (no bracketed tokens left).
+   - Preserve heading hierarchy.
+   - Ensure each Principle section has: succinct name, rules paragraph, explicit rationale.
+   - Ensure Governance section lists amendment procedure, versioning policy, compliance review.
+
+4. Consistency propagation checklist:
+   - Read `/templates/plan-template.md` and ensure constitution alignment.
+   - Read `/templates/spec-template.md` for scope/requirements alignment.
+   - Read `/templates/tasks-template.md` and ensure task categorization reflects principles.
+   - Read command files in `/templates/commands/*.md` to verify no outdated references.
+   - Read runtime guidance docs (README.md, docs/quickstart.md) and update principle references.
+
+5. Produce a Sync Impact Report (prepend as HTML comment at top of constitution file):
+   - Version change: old → new
+   - List of modified principles (old → new if renamed)
+   - Added sections
+   - Removed sections
+   - Templates requiring updates (✅ updated / ⚠ pending) with file paths
+   - Follow-up TODOs if any placeholders intentionally deferred.
+
+6. Validation before final output:
+   - No remaining unexplained bracket tokens.
+   - Version line matches report.
+   - Dates ISO format YYYY-MM-DD.
+   - Principles are declarative, testable, free of vague language.
+
+7. Write the completed constitution back to `/memory/constitution.md` (overwrite).
+
+8. Output a final summary to the user with:
+   - New version and bump rationale.
+   - Any files flagged for manual follow-up.
+   - Suggested commit message.
+
+Formatting & Style Requirements:
+
+- Use Markdown headings exactly as in the template.
+- Wrap long lines to keep readability (<100 chars).
+- Keep single blank line between sections.
+- Avoid trailing whitespace.
+
+If critical info missing (e.g., ratification date unknown), insert `TODO(<FIELD_NAME>): explanation` and include in Sync Impact Report.
+
+Do not create a new template; always operate on the existing `/memory/constitution.md` file.
+```
+
+---
+
+## Summary
+
+The Spec Kit provides a complete AI-powered workflow for Spec-Driven Development with 8 main prompts organized into 5 phases:
+
+1. **Specification Phase** (specify, clarify) - Capture requirements and resolve ambiguities
+2. **Planning Phase** (plan, tasks) - Generate design artifacts and task breakdowns
+3. **Quality Assurance** (checklist, analyze) - Validate requirement quality and cross-artifact consistency
+4. **Implementation Phase** (implement) - Execute tasks with automated project setup
+5. **Project Governance** (constitution) - Establish and maintain constitutional principles
+
+Each prompt is carefully designed to:
+- Work across multiple AI agents (Claude Code, Gemini, Copilot, Cursor, etc.)
+- Use shell script integration for context gathering
+- Provide interactive questioning with AI recommendations
+- Validate against quality gates and constitution principles
+- Generate structured, traceable artifacts
+- Support incremental, user-story-driven delivery
+
+**Next Steps:**
+- Use `/speckit.specify` to start a new feature
+- Run `/speckit.clarify` to resolve ambiguities (optional but recommended)
+- Execute `/speckit.plan` to generate design artifacts
+- Generate tasks with `/speckit.tasks`
+- Validate with `/speckit.analyze` (optional)
+- Implement with `/speckit.implement`
+
+For pipeline workflows and detailed prompt interaction patterns, see `AGENT_PIPELINES.md`.
